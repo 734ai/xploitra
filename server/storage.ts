@@ -148,8 +148,10 @@ export class MemStorage implements IStorage {
     const id = this.currentResultId++;
     const now = new Date();
     const result: ScanResult = {
-      ...insertResult,
       id,
+      scanId: insertResult.scanId,
+      endpoints: insertResult.endpoints || [],
+      scanMetadata: insertResult.scanMetadata || {},
       exportedAt: now,
     };
     this.scanResults.set(id, result);

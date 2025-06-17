@@ -77,6 +77,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get active scans - must come before parameterized routes
+  app.get("/api/scans/active", async (req: Request, res: Response) => {
+    try {
+      const scans = await storage.getActiveScans();
+      res.json(scans);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get active scans" });
+    }
+  });
+
+  // Get scan history
+  app.get("/api/scans", async (req: Request, res: Response) => {
+    try {
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
+      const scans = await storage.getScans(limit);
+      res.json(scans);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get scan history" });
+    }
+  });
+
   // Get scan details
   app.get("/api/scans/:id", async (req: Request, res: Response) => {
     try {
@@ -95,27 +116,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       res.status(500).json({ message: "Failed to get scan" });
-    }
-  });
-
-  // Get scan history
-  app.get("/api/scans", async (req: Request, res: Response) => {
-    try {
-      const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
-      const scans = await storage.getScans(limit);
-      res.json(scans);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to get scan history" });
-    }
-  });
-
-  // Get active scans
-  app.get("/api/scans/active", async (req: Request, res: Response) => {
-    try {
-      const scans = await storage.getActiveScans();
-      res.json(scans);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to get active scans" });
     }
   });
 
@@ -186,7 +186,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else if (format === 'pdf') {
         // For PDF export, we'll return a simplified text version
         // In a real implementation, you'd use a PDF library like puppeteer-pdf or jsPDF
-        const reportText = this.generateTextReport(scan, vulnerabilities);
+        const reportText = generateTextReport(scan, vulnerabilities);
         
         res.setHeader('Content-Type', 'text/plain');
         res.setHeader('Content-Disposition', `attachment; filename="scan-${id}-${Date.now()}.txt"`);
