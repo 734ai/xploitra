@@ -18,6 +18,7 @@ export function ExportModal({ isOpen, onClose, scanId }: ExportModalProps) {
   const [includeVulns, setIncludeVulns] = useState(true);
   const [includeRemediation, setIncludeRemediation] = useState(true);
   const [includeMetadata, setIncludeMetadata] = useState(false);
+  const [includeAI, setIncludeAI] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
   
   const { toast } = useToast();
@@ -27,7 +28,11 @@ export function ExportModal({ isOpen, onClose, scanId }: ExportModalProps) {
 
     setIsExporting(true);
     try {
-      const url = `/api/scans/${scanId}/export?format=${format}`;
+      const params = new URLSearchParams({ format });
+      if (includeAI) {
+        params.append('includeAI', 'true');
+      }
+      const url = `/api/scans/${scanId}/export?${params.toString()}`;
       const response = await fetch(url);
       
       if (!response.ok) {
@@ -105,7 +110,7 @@ export function ExportModal({ isOpen, onClose, scanId }: ExportModalProps) {
                 <Checkbox
                   id="vulns"
                   checked={includeVulns}
-                  onCheckedChange={setIncludeVulns}
+                  onCheckedChange={(checked) => setIncludeVulns(checked === true)}
                 />
                 <Label htmlFor="vulns" className="text-sm">Vulnerability Details</Label>
               </div>
@@ -113,7 +118,7 @@ export function ExportModal({ isOpen, onClose, scanId }: ExportModalProps) {
                 <Checkbox
                   id="remediation"
                   checked={includeRemediation}
-                  onCheckedChange={setIncludeRemediation}
+                  onCheckedChange={(checked) => setIncludeRemediation(checked === true)}
                 />
                 <Label htmlFor="remediation" className="text-sm">Remediation Steps</Label>
               </div>
@@ -121,9 +126,17 @@ export function ExportModal({ isOpen, onClose, scanId }: ExportModalProps) {
                 <Checkbox
                   id="metadata"
                   checked={includeMetadata}
-                  onCheckedChange={setIncludeMetadata}
+                  onCheckedChange={(checked) => setIncludeMetadata(checked === true)}
                 />
                 <Label htmlFor="metadata" className="text-sm">Scan Metadata</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="aiAnalysis"
+                  checked={includeAI}
+                  onCheckedChange={(checked) => setIncludeAI(checked === true)}
+                />
+                <Label htmlFor="aiAnalysis" className="text-sm">AI Risk Analysis</Label>
               </div>
             </div>
           </div>

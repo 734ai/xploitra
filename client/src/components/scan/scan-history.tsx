@@ -10,7 +10,7 @@ interface ScanHistoryProps {
   onAIAnalysis: (scanId: number) => void;
 }
 
-export function ScanHistory({ onExport }: ScanHistoryProps) {
+export function ScanHistory({ onExport, onAIAnalysis }: ScanHistoryProps) {
   const { data: scans = [] } = useQuery({
     queryKey: ["/api/scans?limit=10"],
     refetchInterval: 10000,
@@ -25,7 +25,7 @@ export function ScanHistory({ onExport }: ScanHistoryProps) {
     }
   };
 
-  const completedScans = scans.filter((scan: any) => scan.status === 'completed');
+  const completedScans = (scans as any[]).filter((scan: any) => scan.status === 'completed');
 
   return (
     <Card>
@@ -67,13 +67,24 @@ export function ScanHistory({ onExport }: ScanHistoryProps) {
                   </div>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <Badge className={getStatusColor(scan.status)}>
-                    {scan.status}
+                  <Badge className={getStatusColor((scan as any).status)}>
+                    {(scan as any).status}
                   </Badge>
+                  {(scan as any).status === 'completed' && (scan as any).vulnerabilitiesFound > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onAIAnalysis((scan as any).id)}
+                      className="text-blue-500 hover:text-blue-700"
+                      title="AI Risk Analysis"
+                    >
+                      <Brain className="w-4 h-4" />
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => onExport(scan.id)}
+                    onClick={() => onExport((scan as any).id)}
                     className="text-gray-400 hover:text-gray-600"
                   >
                     <FileText className="w-4 h-4" />
