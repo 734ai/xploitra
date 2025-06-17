@@ -5,6 +5,7 @@ import { ActiveScans } from "@/components/scan/active-scans";
 import { VulnerabilityResults } from "@/components/scan/vulnerability-results";
 import { ScanHistory } from "@/components/scan/scan-history";
 import { SecurityStats } from "@/components/scan/security-stats";
+import { AIVulnerabilityAnalysis } from "@/components/scan/ai-vulnerability-analysis";
 import { ExportModal } from "@/components/modals/export-modal";
 import { useScanEvents } from "@/hooks/use-scan-events";
 import { useState } from "react";
@@ -12,6 +13,8 @@ import { useState } from "react";
 export default function Dashboard() {
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [selectedScanId, setSelectedScanId] = useState<number | null>(null);
+  const [aiAnalysisScanId, setAiAnalysisScanId] = useState<number>(0);
+  const [showAiAnalysis, setShowAiAnalysis] = useState(false);
   
   // Real-time updates via SSE
   useScanEvents();
@@ -34,8 +37,19 @@ export default function Dashboard() {
                 setSelectedScanId(scanId);
                 setIsExportModalOpen(true);
               }}
+              onAIAnalysis={(scanId) => {
+                setAiAnalysisScanId(scanId);
+                setShowAiAnalysis(true);
+              }}
             />
           </div>
+
+          {/* AI Vulnerability Analysis */}
+          <AIVulnerabilityAnalysis
+            scanId={aiAnalysisScanId}
+            isVisible={showAiAnalysis}
+            onToggle={() => setShowAiAnalysis(!showAiAnalysis)}
+          />
 
           <SecurityStats />
         </div>
