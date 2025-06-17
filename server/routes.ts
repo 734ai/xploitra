@@ -2,11 +2,13 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { Scanner } from "./services/scanner";
+import { AIVulnerabilityAnalyzer } from "./services/ai-vulnerability-analyzer";
 import { insertScanSchema } from "@shared/schema";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const scanner = new Scanner();
+  const aiAnalyzer = new AIVulnerabilityAnalyzer();
 
   // SSE endpoint for real-time scan updates
   app.get("/api/scan-events", (req: Request, res: Response) => {
@@ -160,11 +162,85 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get AI-prioritized vulnerability analysis
+  app.get("/api/scans/:id/ai-analysis", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const scan = await storage.getScan(id);
+      
+      if (!scan) {
+        return res.status(404).json({ message: "Scan not found" });
+      }
+
+      if (scan.status !== 'completed') {
+        return res.status(400).json({ message: "Scan must be completed for AI analysis" });
+      }
+
+      const vulnerabilities = await storage.getVulnerabilitiesByScan(id);
+      
+      if (vulnerabilities.length === 0) {
+        return res.json({
+          scanId: id,
+          totalVulnerabilities: 0,
+          riskDistribution: { critical: 0, high: 0, medium: 0, low: 0, info: 0 },
+          topPriorityVulnerabilities: [],
+          recommendedActionPlan: "No vulnerabilities found. Continue regular security monitoring.",
+          executiveSummary: "Security scan completed successfully with no vulnerabilities detected."
+        });
+      }
+
+      const analysis = await aiAnalyzer.prioritizeVulnerabilities(
+        vulnerabilities,
+        scan.targetUrl,
+        { 
+          scanDepth: scan.scanDepth,
+          businessContext: req.query.businessContext as string
+        }
+      );
+
+      res.json(analysis);
+    } catch (error) {
+      console.error("Error in AI analysis:", error);
+      res.status(500).json({ message: "Failed to generate AI analysis" });
+    }
+  });
+
+  // Get vulnerability risk insights
+  app.get("/api/vulnerabilities/:id/ai-insights", async (req: Request, res: Response) => {
+    try {
+      const vulnerabilityId = parseInt(req.params.id);
+      const vulnerabilities = await storage.getLatestVulnerabilities(1000);
+      const targetVuln = vulnerabilities.find(v => v.id === vulnerabilityId);
+      
+      if (!targetVuln) {
+        return res.status(404).json({ message: "Vulnerability not found" });
+      }
+
+      const scan = await storage.getScan(targetVuln.scanId);
+      if (!scan) {
+        return res.status(404).json({ message: "Associated scan not found" });
+      }
+
+      const analysis = await aiAnalyzer.prioritizeVulnerabilities(
+        [targetVuln],
+        scan.targetUrl,
+        { scanDepth: scan.scanDepth }
+      );
+
+      const insights = analysis.topPriorityVulnerabilities[0];
+      res.json(insights || {});
+    } catch (error) {
+      console.error("Error getting vulnerability insights:", error);
+      res.status(500).json({ message: "Failed to get vulnerability insights" });
+    }
+  });
+
   // Export scan results
   app.get("/api/scans/:id/export", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       const format = req.query.format as string || 'json';
+      const includeAI = req.query.includeAI === 'true';
       
       const scan = await storage.getScan(id);
       if (!scan) {
@@ -172,11 +248,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const vulnerabilities = await storage.getVulnerabilitiesByScan(id);
+      let aiAnalysis = null;
+
+      // Include AI analysis if requested and scan is completed
+      if (includeAI && scan.status === 'completed' && vulnerabilities.length > 0) {
+        try {
+          aiAnalysis = await aiAnalyzer.prioritizeVulnerabilities(
+            vulnerabilities,
+            scan.targetUrl,
+            { scanDepth: scan.scanDepth }
+          );
+        } catch (error) {
+          console.error("Error generating AI analysis for export:", error);
+        }
+      }
 
       if (format === 'json') {
         const exportData = {
           scan,
           vulnerabilities,
+          aiAnalysis,
           exportedAt: new Date().toISOString()
         };
         
@@ -184,9 +275,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.setHeader('Content-Disposition', `attachment; filename="scan-${id}-${Date.now()}.json"`);
         res.json(exportData);
       } else if (format === 'pdf') {
-        // For PDF export, we'll return a simplified text version
-        // In a real implementation, you'd use a PDF library like puppeteer-pdf or jsPDF
-        const reportText = generateTextReport(scan, vulnerabilities);
+        const reportText = generateTextReport(scan, vulnerabilities, aiAnalysis);
         
         res.setHeader('Content-Type', 'text/plain');
         res.setHeader('Content-Disposition', `attachment; filename="scan-${id}-${Date.now()}.txt"`);
@@ -203,7 +292,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   return httpServer;
 }
 
-function generateTextReport(scan: any, vulnerabilities: any[]): string {
+function generateTextReport(scan: any, vulnerabilities: any[], aiAnalysis?: any): string {
   let report = `XPLOITRA SECURITY SCAN REPORT\n`;
   report += `=====================================\n\n`;
   report += `Target URL: ${scan.targetUrl}\n`;
@@ -214,13 +303,43 @@ function generateTextReport(scan: any, vulnerabilities: any[]): string {
   report += `Endpoints Tested: ${scan.endpointsTested}\n`;
   report += `Vulnerabilities Found: ${scan.vulnerabilitiesFound}\n\n`;
 
+  // Include AI Analysis summary if available
+  if (aiAnalysis) {
+    report += `AI RISK ASSESSMENT\n`;
+    report += `==================\n\n`;
+    report += `Executive Summary:\n${aiAnalysis.executiveSummary}\n\n`;
+    
+    report += `Risk Distribution:\n`;
+    report += `- Critical: ${aiAnalysis.riskDistribution.critical}\n`;
+    report += `- High: ${aiAnalysis.riskDistribution.high}\n`;
+    report += `- Medium: ${aiAnalysis.riskDistribution.medium}\n`;
+    report += `- Low: ${aiAnalysis.riskDistribution.low}\n\n`;
+    
+    report += `Recommended Action Plan:\n${aiAnalysis.recommendedActionPlan}\n\n`;
+  }
+
   if (vulnerabilities.length > 0) {
     report += `VULNERABILITIES FOUND\n`;
     report += `====================\n\n`;
     
-    vulnerabilities.forEach((vuln, index) => {
+    // Sort vulnerabilities by AI risk score if available
+    const sortedVulns = aiAnalysis ? 
+      vulnerabilities.sort((a: any, b: any) => {
+        const aRisk = aiAnalysis.topPriorityVulnerabilities.find((r: any) => r.vulnerabilityId === a.id);
+        const bRisk = aiAnalysis.topPriorityVulnerabilities.find((r: any) => r.vulnerabilityId === b.id);
+        return (bRisk?.riskScore || 0) - (aRisk?.riskScore || 0);
+      }) : vulnerabilities;
+
+    sortedVulns.forEach((vuln: any, index: number) => {
+      const aiRisk = aiAnalysis?.topPriorityVulnerabilities.find((r: any) => r.vulnerabilityId === vuln.id);
+      
       report += `${index + 1}. ${vuln.title}\n`;
       report += `   Severity: ${vuln.severity.toUpperCase()}\n`;
+      if (aiRisk) {
+        report += `   AI Risk Score: ${aiRisk.riskScore}/10\n`;
+        report += `   AI Risk Level: ${aiRisk.riskLevel.toUpperCase()}\n`;
+        report += `   Urgency: ${aiRisk.urgency.toUpperCase()}\n`;
+      }
       report += `   Type: ${vuln.type}\n`;
       report += `   Endpoint: ${vuln.endpoint}\n`;
       if (vuln.parameter) {
@@ -229,6 +348,9 @@ function generateTextReport(scan: any, vulnerabilities: any[]): string {
       report += `   Description: ${vuln.description}\n`;
       if (vuln.payload) {
         report += `   Payload: ${vuln.payload}\n`;
+      }
+      if (aiRisk?.aiReasoning) {
+        report += `   AI Assessment: ${aiRisk.aiReasoning}\n`;
       }
       report += `   Remediation: ${vuln.remediation}\n\n`;
     });
