@@ -17,7 +17,7 @@ export default function Dashboard() {
   useScanEvents();
 
   return (
-    <div className="min-h-screen flex bg-gray-50">
+    <div className="min-h-screen flex bg-background">
       <Sidebar />
       
       <main className="flex-1 flex flex-col">

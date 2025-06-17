@@ -68,8 +68,12 @@ export class MemStorage implements IStorage {
     const id = this.currentScanId++;
     const now = new Date();
     const scan: Scan = {
-      ...insertScan,
       id,
+      targetUrl: insertScan.targetUrl,
+      scanDepth: insertScan.scanDepth || "standard",
+      aiPayloads: insertScan.aiPayloads ?? true,
+      rateLimit: insertScan.rateLimit || 5,
+      vulnerabilityTypes: insertScan.vulnerabilityTypes || [],
       status: "pending",
       progress: 0,
       endpointsFound: 0,
@@ -111,8 +115,17 @@ export class MemStorage implements IStorage {
     const id = this.currentVulnId++;
     const now = new Date();
     const vulnerability: Vulnerability = {
-      ...insertVuln,
       id,
+      scanId: insertVuln.scanId,
+      type: insertVuln.type,
+      severity: insertVuln.severity,
+      title: insertVuln.title,
+      description: insertVuln.description,
+      endpoint: insertVuln.endpoint,
+      parameter: insertVuln.parameter || null,
+      payload: insertVuln.payload || null,
+      evidence: insertVuln.evidence || null,
+      remediation: insertVuln.remediation || null,
       foundAt: now,
     };
     this.vulnerabilities.set(id, vulnerability);
