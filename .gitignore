@@ -1,0 +1,6 @@
+.env
+# Other gitignore entries
+node_modules
+.next
+out
+# Add other files and directories that should not be versioned
