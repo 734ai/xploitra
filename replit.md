@@ -103,6 +103,8 @@ The application is configured for deployment on Replit with:
 
 Changelog:
 - June 17, 2025. Initial setup
+- June 17, 2025. Implemented comprehensive dark mode with dull, professional colors
+- June 17, 2025. Added AI-powered vulnerability prioritization system using OpenAI GPT-4o
 
 ## User Preferences
 
